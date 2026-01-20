@@ -14,6 +14,7 @@ from dataset import (
 )
 from transformers import DataCollatorForSeq2Seq, Trainer, TrainingArguments
 from unsloth import FastLanguageModel
+from trl import SFTConfig, SFTTrainer
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
@@ -148,7 +149,7 @@ def main():
     logger.info(f"Train size: {len(train_dataset)}")
 
     # 4. Training Arguments
-    training_args = TrainingArguments(
+    training_args = SFTConfig(
         output_dir=args.output_dir,
         per_device_train_batch_size=args.per_device_train_batch_size,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
@@ -171,7 +172,7 @@ def main():
     # We use DataCollatorForSeq2Seq because it handles padding of labels to -100 automatically
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, padding=True)
 
-    trainer = Trainer(
+    trainer = SFTTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
