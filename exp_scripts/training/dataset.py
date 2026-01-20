@@ -19,8 +19,8 @@ class RetrievalTrainingExample:
     query: str
     docs: List[
         Dict[str, str]
-    ]  # List of {"paragraph_text": str, "title": Optional[str], "idx": int}
-    gold_doc_idx: str  # Index of the gold document in docs list
+    ]  # List of {"paragraph_text": str, "title": Optional[str], "idx": str}
+    gold_doc_id: str  # ID of the gold document (string like "doc1", "123", etc.)
 
 
 class RetrievalFineTuningDataset(Dataset):
@@ -46,7 +46,7 @@ class RetrievalFineTuningDataset(Dataset):
             tokenizer: The tokenizer to use
             max_length: Maximum sequence length
             model_base_class: Base model class for prompt formatting
-            include_doc_index: Whether to include document index in the target output
+            include_doc_index: Whether to include document ID in the target output
         """
         self.examples = examples
         self.tokenizer = tokenizer
@@ -82,26 +82,30 @@ class RetrievalFineTuningDataset(Dataset):
         # Build the user prompt
         prompt = self.user_start + " Here are some paragraphs:"
 
-        for i, doc in enumerate(docs):
+        for doc in docs:
             paragraph_text = doc["paragraph_text"]
+            doc_id = doc.get("idx", "")
             if doc.get("title"):
                 paragraph_text = doc["title"] + "\n" + paragraph_text
-            doc_str = f"[{i + 1}] {paragraph_text}"
+            doc_str = f"[{doc_id}] {paragraph_text}"
             prompt += self.separator + doc_str
 
         instruction = "\n\nPlease find information that are relevant to the following query in the paragraphs above."
-        prompt += self.separator + instruction + self.separator + "Query: " + query
+        prompt += instruction + self.separator + "Query: " + query
         prompt += self.assistant_start
 
         return prompt
 
-    def _format_target(self, gold_doc_idx: int, docs: List[Dict[str, str]]) -> str:
+    def _format_target(self, gold_doc_id: str, docs: List[Dict[str, str]]) -> str:
         """Format the target output (the gold document)."""
-        doc = docs[gold_doc_idx]
+        # Find the gold document by its ID
+        doc = next((d for d in docs if d.get("idx") == gold_doc_id), None)
+        if doc is None:
+            raise ValueError(f"Gold document ID '{gold_doc_id}' not found in docs")
 
         if self.include_doc_index:
-            # Output with document index
-            target = f"[{gold_doc_idx + 1}] "
+            # Output with document ID
+            target = f"[{gold_doc_id}] "
         else:
             target = ""
 
@@ -117,7 +121,7 @@ class RetrievalFineTuningDataset(Dataset):
 
         # Format the prompt and target
         prompt = self._format_prompt(example.query, example.docs)
-        target = self._format_target(example.gold_doc_idx, example.docs)
+        target = self._format_target(example.gold_doc_id, example.docs)
 
         # Combine for tokenization
         full_text = prompt + target + self.assistant_end
@@ -154,7 +158,7 @@ class RetrievalFineTuningDataset(Dataset):
 
 class RetrievalFineTuningDatasetWithIndex(Dataset):
     """
-    Alternative dataset format where the model learns to output just the document index.
+    Alternative dataset format where the model learns to output just the document ID.
 
     This can be easier for the model to learn and more efficient for inference.
     """
@@ -204,29 +208,30 @@ class RetrievalFineTuningDatasetWithIndex(Dataset):
         """Format the input prompt with query and documents."""
         prompt = self.user_start + " Here are some paragraphs:"
 
-        for i, doc in enumerate(docs):
+        for doc in docs:
             paragraph_text = doc["paragraph_text"]
+            doc_id = doc.get("idx", "")
             if doc.get("title"):
                 paragraph_text = doc["title"] + "\n" + paragraph_text
-            doc_str = f"[{i + 1}] {paragraph_text}"
+            doc_str = f"[{doc_id}] {paragraph_text}"
             prompt += self.separator + doc_str
 
-        instruction = "\n\nWhich of the above paragraphs is most relevant to the query? Respond with just the number in brackets."
-        prompt += self.separator + instruction + self.separator + "Query: " + query
+        instruction = "\n\nWhich of the above paragraphs is most relevant to the query? Respond with just the ID in brackets."
+        prompt += instruction + self.separator + "Query: " + query
         prompt += self.assistant_start
 
         return prompt
 
-    def _format_target(self, gold_doc_idx: int) -> str:
-        """Format the target (just the document index)."""
-        return f"[{gold_doc_idx + 1}]"
+    def _format_target(self, gold_doc_id: str) -> str:
+        """Format the target (just the document ID)."""
+        return f"[{gold_doc_id}]"
 
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         example = self.examples[idx]
 
         # Format the prompt and target
         prompt = self._format_prompt(example.query, example.docs)
-        target = self._format_target(example.gold_doc_idx)
+        target = self._format_target(example.gold_doc_id)
 
         # Combine for tokenization
         full_text = prompt + target + self.assistant_end
@@ -267,24 +272,24 @@ def load_examples(
     gold_idx_key: str = "gold_doc_idx",
 ) -> List[RetrievalTrainingExample]:
     """
-    Load training examples from a JSONL file.
+    Load training examples from a JSON or JSONL file.
 
-    Expected format per line:
+    Expected format per line (JSONL):
     {
         "query": "What is the capital of France?",
         "docs": [
-            {"idx": 0, "paragraph_text": "...", "title": "..."},
-            {"idx": 1, "paragraph_text": "...", "title": "..."},
+            {"idx": "doc1", "paragraph_text": "...", "title": "..."},
+            {"idx": "doc2", "paragraph_text": "...", "title": "..."},
             ...
         ],
-        "gold_doc_idx": 0
+        "gold_doc_idx": ["doc1"]  # or "doc1" for single gold
     }
 
     Args:
-        file_path: Path to the JSONL file
+        file_path: Path to the JSON/JSONL file
         query_key: Key name for the query field
         docs_key: Key name for the documents field
-        gold_idx_key: Key name for the gold document index field
+        gold_idx_key: Key name for the gold document ID field
 
     Returns:
         List of RetrievalTrainingExample objects
@@ -296,28 +301,38 @@ def load_examples(
         with open(file_path, "r", encoding="utf-8") as f:
             for line in f:
                 data = json.loads(line.strip())
+                gold_ids = data[gold_idx_key]
+                # Handle both single string and list of strings
+                if isinstance(gold_ids, str):
+                    gold_ids = [gold_ids]
                 examples.extend(
                     [
                         RetrievalTrainingExample(
                             query=data[query_key],
                             docs=data[docs_key],
-                            gold_doc_idx=label,
+                            gold_doc_id=gold_id,
                         )
-                        for label in data[gold_idx_key]
+                        for gold_id in gold_ids
                     ]
                 )
     elif file_path.endswith(".json"):
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-            examples = [
-                RetrievalTrainingExample(
-                    query=example[query_key],
-                    docs=example[docs_key],
-                    gold_doc_idx=label,
+            for example in data:
+                gold_ids = example[gold_idx_key]
+                # Handle both single string and list of strings
+                if isinstance(gold_ids, str):
+                    gold_ids = [gold_ids]
+                examples.extend(
+                    [
+                        RetrievalTrainingExample(
+                            query=example[query_key],
+                            docs=example[docs_key],
+                            gold_doc_id=gold_id,
+                        )
+                        for gold_id in gold_ids
+                    ]
                 )
-                for example in data
-                for label in example[gold_idx_key]
-            ]
     else:
         raise ValueError(f"Unsupported file format: {file_path}")
     return examples
