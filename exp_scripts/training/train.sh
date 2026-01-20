@@ -28,9 +28,7 @@ SEED=42                   # Random seed
 TASK_TYPE="generate_content"
 
 # Run training
-python -m torch.distributed.launch \
-    --nproc_per_node=$NUM_GPUS \
-    exp_scripts/training/train_qwen.py \
+python exp_scripts/training/train_qwen.py \
     --model_name_or_path $MODEL_NAME \
     --train_file $TRAIN_FILE \
     --validation_file $VALID_FILE \
@@ -43,21 +41,21 @@ python -m torch.distributed.launch \
     --num_train_epochs $NUM_EPOCHS \
     --learning_rate $LEARNING_RATE \
     --warmup_ratio $WARMUP_RATIO \
-    --lr_scheduler_type cosine \
     --weight_decay 0.01 \
     --logging_steps 10 \
     --save_steps 500 \
     --eval_steps 500 \
     --save_total_limit 3 \
-    --bf16 True \
-    --gradient_checkpointing True \
-    --dataloader_num_workers 4 \
+    --bf16 \
+    --gradient_checkpointing \
     --report_to wandb \
     --run_name qwen25-7b-retrieval-ft \
     --seed $SEED \
     --torch_dtype bfloat16 \
     --attn_implementation flash_attention_2 \
-    --trust_remote_code True \
+    --trust_remote_code \
+    --do_train \
+    --do_eval \
     "$@"
 
 # Alternative single GPU command (for testing or if you have 1 GPU):
