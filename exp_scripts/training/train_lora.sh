@@ -17,7 +17,7 @@ BATCH_SIZE=1              # Per-device batch size
 GRAD_ACCUM=2             # Gradient accumulation (effective batch size = 1 * 16 = 16)
 NUM_EPOCHS=1              # Number of training epochs
 LEARNING_RATE=2e-4        # Learning rate (higher for LoRA)
-MAX_LENGTH=16392           # Maximum sequence length (reduced for memory)
+MAX_LENGTH=16392            # Maximum sequence length (must be <= 131072 for Qwen)
 WARMUP_RATIO=0.03         # Warmup ratio
 
 # LoRA hyperparameters

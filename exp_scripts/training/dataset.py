@@ -126,6 +126,10 @@ class RetrievalFineTuningDataset(Dataset):
         # Combine for tokenization
         full_text = prompt + target + self.assistant_end
 
+        # Get prompt length for masking
+        prompt_tokens = self.tokenizer(prompt, add_special_tokens=False)
+        prompt_length = len(prompt_tokens["input_ids"])
+
         # Tokenize
         encodings = self.tokenizer(
             full_text,
@@ -136,20 +140,16 @@ class RetrievalFineTuningDataset(Dataset):
         )
 
         # Create labels: only compute loss on the target portion
-        # Find where the target starts in the tokenized sequence
-        prompt_length = len(
-            self.tokenizer(prompt, add_special_tokens=False)["input_ids"]
-        )
-
-        # Create labels mask (ignore prompt tokens, only compute loss on target)
         labels = encodings["input_ids"].clone()
-        labels[0, :prompt_length] = -100  # -100 is the ignore index in PyTorch
+        labels[0, :prompt_length] = -100  # Ignore prompt tokens
 
-        # Also mask out padding tokens (tokens that come after the actual content)
-        # Find actual sequence length (non-padding tokens)
-        attention_mask = encodings["attention_mask"][0]
-        seq_len = attention_mask.sum().item()  # Number of non-padding tokens
-        labels[0, seq_len:] = -100  # Mask padding tokens
+        # Mask padding tokens (pad_token_id equals eos_token_id after we set it)
+        pad_token_id = self.tokenizer.pad_token_id
+        labels[0, :] = torch.where(
+            encodings["input_ids"][0] == pad_token_id,
+            torch.tensor(-100),
+            labels[0, :]
+        )
 
         return {
             "input_ids": encodings["input_ids"].squeeze(0),
@@ -238,6 +238,10 @@ class RetrievalFineTuningDatasetWithIndex(Dataset):
         # Combine for tokenization
         full_text = prompt + target + self.assistant_end
 
+        # Get prompt length for masking
+        prompt_tokens = self.tokenizer(prompt, add_special_tokens=False)
+        prompt_length = len(prompt_tokens["input_ids"])
+
         # Tokenize
         encodings = self.tokenizer(
             full_text,
@@ -248,18 +252,16 @@ class RetrievalFineTuningDatasetWithIndex(Dataset):
         )
 
         # Create labels: only compute loss on the target portion
-        prompt_length = len(
-            self.tokenizer(prompt, add_special_tokens=False)["input_ids"]
-        )
-
-        # Create labels mask
         labels = encodings["input_ids"].clone()
-        labels[0, :prompt_length] = -100
+        labels[0, :prompt_length] = -100  # Ignore prompt tokens
 
-        # Also mask out padding tokens (tokens that come after the actual content)
-        attention_mask = encodings["attention_mask"][0]
-        seq_len = attention_mask.sum().item()  # Number of non-padding tokens
-        labels[0, seq_len:] = -100  # Mask padding tokens
+        # Mask padding tokens
+        pad_token_id = self.tokenizer.pad_token_id
+        labels[0, :] = torch.where(
+            encodings["input_ids"][0] == pad_token_id,
+            torch.tensor(-100),
+            labels[0, :]
+        )
 
         return {
             "input_ids": encodings["input_ids"].squeeze(0),
