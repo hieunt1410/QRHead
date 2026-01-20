@@ -1,8 +1,8 @@
 """
 Training script for fine-tuning Qwen 2.5 using Unsloth + LoRA.
 
-Unsloth is 2x faster and uses less memory than standard HF Trainer.
-Based on: https://www.kaggle.com/code/ksmooi/fine-tuning-qwen-2-5-coder-14b-llm-sft-peft
+Based on Kaggle notebook: https://www.kaggle.com/code/ksmooi/fine-tuning-qwen-2-5-coder-14b-llm-sft-peft
+And Unsloth docs: https://github.com/unslothai/unsloth
 """
 
 import argparse
@@ -26,78 +26,42 @@ logger = logging.getLogger(__name__)
 def parse_args():
     parser = argparse.ArgumentParser(description="Fine-tune Qwen 2.5 using Unsloth + LoRA")
 
-    # Model arguments
-    parser.add_argument("--model_name", type=str, default="unsloth/qwen2.5-7b-instruct-unsloth-bnb-4bit",
-                        help="Model name (use Unsloth quantized version for memory efficiency)")
-    parser.add_argument("--max_seq_length", type=int, default=16384,
-                        help="Maximum sequence length")
-    parser.add_argument("--dtype", type=str, default=None,
-                        choices=[None, "float16", "bfloat16", "float32"],
-                        help="Data type (None = auto)")
+    parser.add_argument("--model_name", type=str, default="unsloth/Qwen2.5-7B-Instruct-bnb-4bit")
+    parser.add_argument("--max_seq_length", type=int, default=16384)
+    parser.add_argument("--lora_r", type=int, default=16)
+    parser.add_argument("--lora_alpha", type=int, default=32)
+    parser.add_argument("--lora_dropout", type=float, default=0.0)
+    parser.add_argument("--target_modules", type=str, default="all-linear")
 
-    # LoRA arguments
-    parser.add_argument("--lora_r", type=int, default=16,
-                        help="LoRA rank")
-    parser.add_argument("--lora_alpha", type=int, default=32,
-                        help="LoRA alpha")
-    parser.add_argument("--lora_dropout", type=float, default=0.0,
-                        help="LoRA dropout")
-    parser.add_argument("--target_modules", type=str, default="all-linear",
-                        help="Target modules for LoRA")
-
-    # Data arguments
-    parser.add_argument("--train_file", type=str, required=True,
-                        help="Path to training data (JSON)")
-    parser.add_argument("--validation_file", type=str, default=None,
-                        help="Path to validation data (JSON)")
-    parser.add_argument("--max_train_samples", type=int, default=None,
-                        help="Limit training samples")
-    parser.add_argument("--max_eval_samples", type=int, default=None,
-                        help="Limit eval samples")
+    parser.add_argument("--train_file", type=str, required=True)
+    parser.add_argument("--validation_file", type=str, default=None)
+    parser.add_argument("--max_train_samples", type=int, default=None)
+    parser.add_argument("--max_eval_samples", type=int, default=None)
     parser.add_argument("--task_type", type=str, default="generate_content",
-                        choices=["generate_content", "predict_index"],
-                        help="Training task type")
-    parser.add_argument("--query_key", type=str, default="query",
-                        help="Query key in JSON")
-    parser.add_argument("--docs_key", type=str, default="docs",
-                        help="Documents key in JSON")
-    parser.add_argument("--gold_idx_key", type=str, default="gold_doc_idx",
-                        help="Gold index key in JSON")
+                        choices=["generate_content", "predict_index"])
+    parser.add_argument("--query_key", type=str, default="query")
+    parser.add_argument("--docs_key", type=str, default="docs")
+    parser.add_argument("--gold_idx_key", type=str, default="gold_doc_idx")
 
-    # Training arguments
-    parser.add_argument("--output_dir", type=str, required=True,
-                        help="Output directory")
-    parser.add_argument("--per_device_train_batch_size", type=int, default=1,
-                        help="Train batch size")
-    parser.add_argument("--gradient_accumulation_steps", type=int, default=4,
-                        help="Gradient accumulation")
-    parser.add_argument("--learning_rate", type=float, default=2e-4,
-                        help="Learning rate")
-    parser.add_argument("--num_train_epochs", type=int, default=1,
-                        help="Number of epochs")
-    parser.add_argument("--max_steps", type=int, default=None,
-                        help="Max steps (overrides epochs)")
-    parser.add_argument("--warmup_steps", type=int, default=10,
-                        help="Warmup steps")
-    parser.add_argument("--logging_steps", type=int, default=10,
-                        help="Logging frequency")
-    parser.add_argument("--save_steps", type=int, default=100,
-                        help="Save frequency")
-    parser.add_argument("--seed", type=int, default=42,
-                        help="Random seed")
+    parser.add_argument("--output_dir", type=str, required=True)
+    parser.add_argument("--per_device_train_batch_size", type=int, default=1)
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=4)
+    parser.add_argument("--learning_rate", type=float, default=2e-4)
+    parser.add_argument("--num_train_epochs", type=int, default=1)
+    parser.add_argument("--max_steps", type=int, default=None)
+    parser.add_argument("--warmup_steps", type=int, default=10)
+    parser.add_argument("--logging_steps", type=int, default=10)
+    parser.add_argument("--save_steps", type=int, default=100)
+    parser.add_argument("--seed", type=int, default=42)
 
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+    logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
-    # Setup logging
-    logging.basicConfig(
-        format="%(asctime)s - %(levelname)s - %(message)s",
-        level=logging.INFO,
-    )
-
+    # Unsloth imports
     try:
         from unsloth import FastLanguageModel
     except ImportError:
@@ -105,19 +69,19 @@ def main():
         sys.exit(1)
 
     from transformers import TrainingArguments
+    from trl import SFTTrainer
 
     logger.info(f"Loading model: {args.model_name}")
 
-    # Load model with Unsloth
+    # Load model with Unsloth - following the standard pattern
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=args.model_name,
         max_seq_length=args.max_seq_length,
-        dtype=None if args.dtype is None else args.dtype,
-        load_in_4bit=True,  # 4-bit quantization for memory efficiency
+        dtype=None,  # Auto-detection
+        load_in_4bit=True,
     )
 
     # Configure LoRA
-    # Handle target_modules - "all-linear" is a special string for Unsloth
     target_modules = args.target_modules
     if target_modules == "all-linear":
         target_modules = ["q_proj", "k_proj", "v_proj", "o_proj",
@@ -133,6 +97,9 @@ def main():
         use_gradient_checkpointing="unsloth",
         random_state=args.seed,
     )
+
+    # Print trainable params
+    model.print_trainable_parameters()
 
     # Set pad token
     if tokenizer.pad_token is None:
@@ -212,7 +179,7 @@ def main():
         save_steps=args.save_steps,
         save_total_limit=2,
         seed=args.seed,
-        bf16=True,  # Use bfloat16
+        bf16=True,
         fp16=False,
         max_grad_norm=1.0,
         weight_decay=0.01,
@@ -224,15 +191,14 @@ def main():
         do_eval=True if eval_dataset else False,
     )
 
-    # Create trainer
-    from transformers import Trainer
-
-    trainer = Trainer(
+    # Create trainer - use SFTTrainer from TRL (works well with Unsloth)
+    trainer = SFTTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         tokenizer=tokenizer,
+        dataset_text_field="",  # Not used since we pre-process in dataset
     )
 
     # Train
