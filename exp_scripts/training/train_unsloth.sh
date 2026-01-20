@@ -46,5 +46,4 @@ python exp_scripts/training/train_qwen_unsloth.py \
     --warmup_steps 10 \
     --logging_steps 10 \
     --save_steps 100 \
-    --bf16 \
     "$@"
