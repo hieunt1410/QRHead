@@ -7,12 +7,7 @@ import logging
 import sys
 from pathlib import Path
 
-from dataset import (
-    RetrievalFineTuningDataset,
-    RetrievalFineTuningDatasetWithIndex,
-    load_examples,
-)
-from transformers import DataCollatorForSeq2Seq, Trainer, TrainingArguments
+from dataset import load_examples_as_dataset
 from unsloth import FastLanguageModel
 from trl import SFTConfig, SFTTrainer
 
@@ -116,35 +111,26 @@ def main():
 
     # 3. Load & Prepare Data
     logger.info(f"Loading data from {args.train_file}")
-    train_examples = load_examples(args.train_file)
-    if args.max_train_samples:
-        train_examples = train_examples[: args.max_train_samples]
 
-    # Select Dataset Class
-    DatasetClass = (
-        RetrievalFineTuningDataset
-        if args.task_type == "generate_content"
-        else RetrievalFineTuningDatasetWithIndex
-    )
-
-    train_dataset = DatasetClass(
-        examples=train_examples,
-        tokenizer=tokenizer,
-        max_length=args.max_seq_length,
+    # Load dataset with formatted text column
+    train_dataset = load_examples_as_dataset(
+        args.train_file,
         model_base_class="Qwen2.5-7B-Instruct",
+        include_doc_index=(args.task_type == "predict_index"),
     )
+
+    if args.max_train_samples:
+        train_dataset = train_dataset.select(range(min(args.max_train_samples, len(train_dataset))))
 
     eval_dataset = None
     if args.validation_file:
-        eval_examples = load_examples(args.validation_file)
-        if args.max_eval_samples:
-            eval_examples = eval_examples[: args.max_eval_samples]
-        eval_dataset = DatasetClass(
-            examples=eval_examples,
-            tokenizer=tokenizer,
-            max_length=args.max_seq_length,
+        eval_dataset = load_examples_as_dataset(
+            args.validation_file,
             model_base_class="Qwen2.5-7B-Instruct",
+            include_doc_index=(args.task_type == "predict_index"),
         )
+        if args.max_eval_samples:
+            eval_dataset = eval_dataset.select(range(min(args.max_eval_samples, len(eval_dataset))))
 
     logger.info(f"Train size: {len(train_dataset)}")
 
@@ -165,13 +151,9 @@ def main():
         seed=args.seed,
         report_to="none",  # Change to "wandb" if you want tracking
         save_total_limit=2,
-        remove_unused_columns=False,  # CRITICAL for custom datasets returning tensors
     )
 
     # 5. Initialize Trainer
-    # We use DataCollatorForSeq2Seq because it handles padding of labels to -100 automatically
-    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, padding=True)
-
     trainer = SFTTrainer(
         model=model,
         args=training_args,
@@ -179,7 +161,6 @@ def main():
         eval_dataset=eval_dataset,
         dataset_text_field="text",
         max_seq_length=args.max_seq_length,
-        data_collator=data_collator,
         tokenizer=tokenizer,
     )
 
