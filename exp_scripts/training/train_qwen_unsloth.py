@@ -2,29 +2,25 @@
 Training script for fine-tuning Qwen 2.5 using Unsloth + LoRA.
 """
 
-import sys
+import argparse
 import logging
+import sys
 from pathlib import Path
 
-# --- CRITICAL: Unsloth must be imported BEFORE transformers (and modules that use it) ---
-try:
-    from unsloth import FastLanguageModel, is_bfloat16_supported
-except ImportError:
-    raise ImportError("Unsloth not installed. Install with: pip install unsloth")
+from dataset import (
+    RetrievalFineTuningDataset,
+    RetrievalFineTuningDatasetWithIndex,
+    load_examples,
+)
+from transformers import DataCollatorForSeq2Seq, Trainer, TrainingArguments
+from unsloth import FastLanguageModel
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
 # Now it is safe to import modules that use transformers
-from dataset import (
-    RetrievalFineTuningDataset,
-    RetrievalFineTuningDatasetWithIndex,
-    load_examples,
-)
 
-import argparse
-from transformers import TrainingArguments, Trainer, DataCollatorForSeq2Seq
 
 logger = logging.getLogger(__name__)
 
@@ -161,8 +157,6 @@ def main():
         warmup_steps=args.warmup_steps,
         logging_steps=args.logging_steps,
         save_steps=args.save_steps,
-        fp16=not is_bfloat16_supported(),
-        bf16=is_bfloat16_supported(),
         logging_first_step=True,
         optim="adamw_8bit",  # Use 8-bit optimizer to save memory
         weight_decay=0.01,
@@ -182,6 +176,8 @@ def main():
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
+        dataset_text_field="text",
+        max_seq_length=args.max_seq_length,
         data_collator=data_collator,
         tokenizer=tokenizer,
     )

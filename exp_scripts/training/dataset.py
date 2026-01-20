@@ -62,20 +62,20 @@ class RetrievalFineTuningDataset(Dataset):
             self.user_start = "<|im_start|>user"
             self.assistant_start = "<|im_end|>\n<|im_start|>assistant"
             self.assistant_end = "<|im_end|>"
-            self.separator = "\n\n"
+            self.separator = "\n"
         elif "llama" in self.model_base_class:
             self.user_start = "<|start_header_id|>user<|end_header_id|>"
             self.assistant_start = (
                 "<|eot_id|><|start_header_id|>assistant<|end_header_id|>"
             )
             self.assistant_end = "<|eot_id|>"
-            self.separator = " \n\n"
+            self.separator = " \n"
         else:
             # Default format
             self.user_start = "User:"
             self.assistant_start = "\nAssistant:"
             self.assistant_end = ""
-            self.separator = "\n\n"
+            self.separator = "\n"
 
     def __len__(self) -> int:
         return len(self.examples)
@@ -83,7 +83,7 @@ class RetrievalFineTuningDataset(Dataset):
     def _format_prompt(self, query: str, docs: List[Dict[str, str]]) -> str:
         """Format the input prompt with query and documents."""
         # Build the user prompt
-        prompt = self.user_start + " Here are some paragraphs:"
+        prompt = "Here are some paragraphs:\n\n### Paragraphs:"
 
         for doc in docs:
             paragraph_text = doc["paragraph_text"]
@@ -95,7 +95,7 @@ class RetrievalFineTuningDataset(Dataset):
 
         instruction = "\n\nPlease find information that are relevant to the following query in the paragraphs above."
         prompt += instruction + self.separator + "Query: " + query
-        prompt += self.assistant_start
+        # prompt += self.assistant_start
 
         return prompt
 
@@ -112,10 +112,10 @@ class RetrievalFineTuningDataset(Dataset):
         else:
             target = ""
 
-        paragraph_text = doc["paragraph_text"]
-        if doc.get("title"):
-            target += doc["title"] + "\n"
-        target += paragraph_text
+        # paragraph_text = doc["paragraph_text"]
+        # if doc.get("title"):
+        #     target += doc["title"] + "\n"
+        # target += paragraph_text
 
         return target
 
@@ -127,36 +127,40 @@ class RetrievalFineTuningDataset(Dataset):
         target = self._format_target(example.gold_doc_id, example.docs)
 
         # Combine for tokenization
-        full_text = prompt + target + self.assistant_end
+        full_text = prompt + target
 
-        # Get prompt length for masking
-        prompt_tokens = self.tokenizer(prompt, add_special_tokens=False)
-        prompt_length = len(prompt_tokens["input_ids"])
+        # # Get prompt length for masking
+        # prompt_tokens = self.tokenizer(prompt, add_special_tokens=False)
+        # prompt_length = len(prompt_tokens["input_ids"])
 
-        # Tokenize
-        encodings = self.tokenizer(
-            full_text,
-            truncation=True,
-            max_length=self.max_length,
-            padding="max_length",
-            return_tensors="pt",
-        )
-
-        # Create labels: only compute loss on the target portion
-        labels = encodings["input_ids"].clone()
-        labels[0, :prompt_length] = -100  # Ignore prompt tokens
-
-        # Mask padding tokens (pad_token_id equals eos_token_id after we set it)
-        pad_token_id = self.tokenizer.pad_token_id
-        labels[0, :] = torch.where(
-            encodings["input_ids"][0] == pad_token_id, torch.tensor(-100), labels[0, :]
-        )
 
         return {
-            "input_ids": encodings["input_ids"].squeeze(0),
-            "attention_mask": encodings["attention_mask"].squeeze(0),
-            "labels": labels.squeeze(0),
+            "text": full_text
         }
+        # # Tokenize
+        # encodings = self.tokenizer(
+        #     full_text,
+        #     truncation=True,
+        #     max_length=self.max_length,
+        #     padding="max_length",
+        #     return_tensors="pt",
+        # )
+
+        # # Create labels: only compute loss on the target portion
+        # labels = encodings["input_ids"].clone()
+        # labels[0, :prompt_length] = -100  # Ignore prompt tokens
+
+        # # Mask padding tokens (pad_token_id equals eos_token_id after we set it)
+        # pad_token_id = self.tokenizer.pad_token_id
+        # labels[0, :] = torch.where(
+        #     encodings["input_ids"][0] == pad_token_id, torch.tensor(-100), labels[0, :]
+        # )
+
+        # return {
+        #     "input_ids": encodings["input_ids"].squeeze(0),
+        #     "attention_mask": encodings["attention_mask"].squeeze(0),
+        #     "labels": labels.squeeze(0),
+        # }
 
 
 class RetrievalFineTuningDatasetWithIndex(Dataset):
