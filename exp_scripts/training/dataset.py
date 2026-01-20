@@ -5,10 +5,11 @@ The task is: given a query and top-k retrieved articles, the model should output
 the gold/relevant article.
 """
 
-from typing import Dict, List, Optional
 from dataclasses import dataclass
+from typing import Dict, List, Optional
+
 import torch
-from torch.utils.data import Dataset
+from datasets.arrow_dataset import Dataset
 from transformers import PreTrainedTokenizer
 
 
