@@ -290,18 +290,22 @@ def load_examples(
         List of RetrievalTrainingExample objects
     """
     import json
+
     examples = []
     if file_path.endswith(".jsonl"):
         with open(file_path, "r", encoding="utf-8") as f:
             for line in f:
                 data = json.loads(line.strip())
-                examples.append(
-                    RetrievalTrainingExample(
-                    query=data[query_key],
-                    docs=data[docs_key],
-                    gold_doc_idx=data[gold_idx_key],
+                examples.extend(
+                    [
+                        RetrievalTrainingExample(
+                            query=data[query_key],
+                            docs=data[docs_key],
+                            gold_doc_idx=label,
+                        )
+                        for label in data[gold_idx_key]
+                    ]
                 )
-            )
     elif file_path.endswith(".json"):
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -309,9 +313,10 @@ def load_examples(
                 RetrievalTrainingExample(
                     query=example[query_key],
                     docs=example[docs_key],
-                    gold_doc_idx=example[gold_idx_key],
+                    gold_doc_idx=label,
                 )
                 for example in data
+                for label in example[gold_idx_key]
             ]
     else:
         raise ValueError(f"Unsupported file format: {file_path}")
