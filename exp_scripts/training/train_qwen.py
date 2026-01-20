@@ -28,7 +28,7 @@ from qrretriever.custom_modeling_qwen2 import Qwen2ForCausalLM
 from dataset import (
     RetrievalFineTuningDataset,
     RetrievalFineTuningDatasetWithIndex,
-    load_examples_from_jsonl,
+    load_examples,
 )
 
 
@@ -189,7 +189,7 @@ def main():
 
     # Load datasets
     logger.info(f"Loading training data from {args.train_file}")
-    train_examples = load_examples_from_jsonl(
+    train_examples = load_examples(
         args.train_file,
         query_key=args.query_key,
         docs_key=args.docs_key,
@@ -203,7 +203,7 @@ def main():
     eval_examples = None
     if args.validation_file:
         logger.info(f"Loading validation data from {args.validation_file}")
-        eval_examples = load_examples_from_jsonl(
+        eval_examples = load_examples(
             args.validation_file,
             query_key=args.query_key,
             docs_key=args.docs_key,

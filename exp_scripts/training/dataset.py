@@ -260,7 +260,7 @@ class RetrievalFineTuningDatasetWithIndex(Dataset):
         }
 
 
-def load_examples_from_jsonl(
+def load_examples(
     file_path: str,
     query_key: str = "query",
     docs_key: str = "docs",
@@ -290,16 +290,29 @@ def load_examples_from_jsonl(
         List of RetrievalTrainingExample objects
     """
     import json
-
     examples = []
-    with open(file_path, "r", encoding="utf-8") as f:
-        for line in f:
-            data = json.loads(line.strip())
-            examples.append(
-                RetrievalTrainingExample(
+    if file_path.endswith(".jsonl"):
+        with open(file_path, "r", encoding="utf-8") as f:
+            for line in f:
+                data = json.loads(line.strip())
+                examples.append(
+                    RetrievalTrainingExample(
                     query=data[query_key],
                     docs=data[docs_key],
                     gold_doc_idx=data[gold_idx_key],
                 )
             )
+    elif file_path.endswith(".json"):
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            examples = [
+                RetrievalTrainingExample(
+                    query=example[query_key],
+                    docs=example[docs_key],
+                    gold_doc_idx=example[gold_idx_key],
+                )
+                for example in data
+            ]
+    else:
+        raise ValueError(f"Unsupported file format: {file_path}")
     return examples
