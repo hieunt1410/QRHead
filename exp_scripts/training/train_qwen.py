@@ -19,6 +19,7 @@ from transformers import (
     Trainer,
     TrainingArguments,
     set_seed,
+    add_argparse_arguments
 )
 from transformers.trainer_utils import get_last_checkpoint
 

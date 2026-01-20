@@ -17,7 +17,7 @@ BATCH_SIZE=2              # Per-device batch size (adjust based on GPU memory)
 GRAD_ACCUM=4              # Gradient accumulation steps (effective batch size = BATCH_SIZE * GRAD_ACCUM * NUM_GPUS)
 NUM_EPOCHS=3              # Number of training epochs
 LEARNING_RATE=2e-5        # Learning rate
-MAX_LENGTH=4096           # Maximum sequence length
+MAX_LENGTH=32768           # Maximum sequence length
 WARMUP_RATIO=0.1          # Warmup ratio
 
 # System settings
