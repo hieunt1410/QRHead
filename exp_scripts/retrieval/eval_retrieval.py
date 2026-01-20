@@ -16,7 +16,7 @@ def compute_recall(samples: List[Dict[str, Any]], scores: Dict[str, Dict[str, fl
     recall_any_count = 0
     recall_all_count = 0
     valid_samples = 0
-    
+
     for sample in samples:
         qid = str(sample.get('idx'))
         gt_docs = sample.get('gt_docs', [])
