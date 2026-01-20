@@ -93,9 +93,9 @@ def parse_args():
     parser.add_argument("--task_type", type=str, default="generate_content",
                         choices=["generate_content", "predict_index"],
                         help="Type of training task")
-    parser.add_argument("--query_key", type=str, default="query_id",
+    parser.add_argument("--query_key", type=str, default="query",
                         help="Key name for the query field in JSON")
-    parser.add_argument("--docs_key", type=str, default="documents",
+    parser.add_argument("--docs_key", type=str, default="docs",
                         help="Key name for the documents field in JSON")
     parser.add_argument("--gold_idx_key", type=str, default="gold_doc_idx",
                         help="Key name for the gold document index field in JSON")
