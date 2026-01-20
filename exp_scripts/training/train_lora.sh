@@ -13,7 +13,7 @@ OUTPUT_DIR="outputs/qwen25-7b-retrieval-lora"
 mkdir -p $OUTPUT_DIR
 
 # Training hyperparameters (optimized for memory efficiency)
-BATCH_SIZE=1              # Per-device batch size
+BATCH_SIZE=2              # Per-device batch size
 GRAD_ACCUM=2             # Gradient accumulation (effective batch size = 1 * 16 = 16)
 NUM_EPOCHS=3              # Number of training epochs
 LEARNING_RATE=2e-4        # Learning rate (higher for LoRA)
