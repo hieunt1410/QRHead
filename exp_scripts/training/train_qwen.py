@@ -9,9 +9,7 @@ import argparse
 import logging
 import os
 import sys
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 import torch
 from transformers import (
@@ -19,7 +17,6 @@ from transformers import (
     Trainer,
     TrainingArguments,
     set_seed,
-    add_argparse_arguments
 )
 from transformers.trainer_utils import get_last_checkpoint
 
@@ -38,123 +35,61 @@ from dataset import (
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class ModelArguments:
-    """Arguments pertaining to which model/config/tokenizer we are going to fine-tune."""
+def parse_args():
+    parser = argparse.ArgumentParser(description="Fine-tune Qwen 2.5 7B on retrieval task")
 
-    model_name_or_path: str = field(
-        metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
-    )
-    config_name: Optional[str] = field(
-        default=None,
-        metadata={"help": "Pretrained config name or path if not the same as model_name"},
-    )
-    tokenizer_name: Optional[str] = field(
-        default=None,
-        metadata={"help": "Pretrained tokenizer name or path if not the same as model_name"},
-    )
-    cache_dir: Optional[str] = field(
-        default=None,
-        metadata={"help": "Where to store the pretrained models downloaded from huggingface.co"},
-    )
-    use_fast_tokenizer: bool = field(
-        default=True,
-        metadata={"help": "Whether to use one of the fast tokenizer (backed by the tokenizers library)."},
-    )
-    model_revision: str = field(
-        default="main",
-        metadata={"help": "The specific model version to use (can be a branch name, tag name or commit id)."},
-    )
-    torch_dtype: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": (
-                "Override the default `torch.dtype` and load the model under this dtype. "
-                "If `auto`, the dtype will be automatically derived from the model's weights."
-            ),
-            "choices": ["auto", "bfloat16", "float16", "float32"],
-        },
-    )
-    attn_implementation: str = field(
-        default="flash_attention_2",
-        metadata={"help": "Which attention implementation to use"},
-    )
-    trust_remote_code: bool = field(
-        default=False,
-        metadata={"help": "Whether to trust remote code when loading the model."},
-    )
+    # Model arguments
+    parser.add_argument("--model_name_or_path", type=str, required=True,
+                        help="Path to pretrained model or model identifier from huggingface.co")
+    parser.add_argument("--config_name", type=str, default=None,
+                        help="Pretrained config name or path if not the same as model_name")
+    parser.add_argument("--tokenizer_name", type=str, default=None,
+                        help="Pretrained tokenizer name or path if not the same as model_name")
+    parser.add_argument("--cache_dir", type=str, default=None,
+                        help="Where to store the pretrained models downloaded from huggingface.co")
+    parser.add_argument("--model_revision", type=str, default="main",
+                        help="The specific model version to use (branch, tag name or commit id)")
+    parser.add_argument("--torch_dtype", type=str, default=None,
+                        choices=["auto", "bfloat16", "float16", "float32"],
+                        help="Override the default torch.dtype for the model")
+    parser.add_argument("--attn_implementation", type=str, default="flash_attention_2",
+                        help="Which attention implementation to use")
+    parser.add_argument("--trust_remote_code", action="store_true",
+                        help="Whether to trust remote code when loading the model")
 
+    # Data arguments
+    parser.add_argument("--train_file", type=str, required=True,
+                        help="Path to the training file (JSONL format)")
+    parser.add_argument("--validation_file", type=str, default=None,
+                        help="Path to the validation file (JSONL format)")
+    parser.add_argument("--max_length", type=int, default=32768,
+                        help="Maximum sequence length for tokenization")
+    parser.add_argument("--max_train_samples", type=int, default=None,
+                        help="Truncate the number of training examples")
+    parser.add_argument("--max_eval_samples", type=int, default=None,
+                        help="Truncate the number of evaluation examples")
+    parser.add_argument("--preprocessing_num_workers", type=int, default=None,
+                        help="The number of processes to use for preprocessing")
+    parser.add_argument("--model_base_class", type=str, default="Qwen2.5-7B-Instruct",
+                        help="Base model class for prompt formatting")
+    parser.add_argument("--task_type", type=str, default="generate_content",
+                        choices=["generate_content", "predict_index"],
+                        help="Type of training task")
+    parser.add_argument("--query_key", type=str, default="query",
+                        help="Key name for the query field in JSONL")
+    parser.add_argument("--docs_key", type=str, default="docs",
+                        help="Key name for the documents field in JSONL")
+    parser.add_argument("--gold_idx_key", type=str, default="gold_doc_idx",
+                        help="Key name for the gold document index field in JSONL")
 
-@dataclass
-class DataTrainingArguments:
-    """Arguments pertaining to what data we are going to input our model for training and eval."""
+    # Add all TrainingArguments
+    parser = TrainingArguments.add_argparse_arguments(parser)
 
-    train_file: str = field(
-        metadata={"help": "Path to the training file (JSONL format)."}
-    )
-    validation_file: Optional[str] = field(
-        default=None,
-        metadata={"help": "Path to the validation file (JSONL format)."}
-    )
-    max_train_samples: Optional[int] = field(
-        default=None,
-        metadata={
-            "help": (
-                "For debugging purposes or quicker training, truncate the number of training examples."
-            )
-        },
-    )
-    max_eval_samples: Optional[int] = field(
-        default=None,
-        metadata={
-            "help": (
-                "For debugging purposes or quicker training, truncate the number of evaluation examples."
-            )
-        },
-    )
-    max_length: int = field(
-        default=4096,
-        metadata={"help": "Maximum sequence length for tokenization."},
-    )
-    preprocessing_num_workers: Optional[int] = field(
-        default=None,
-        metadata={"help": "The number of processes to use for the preprocessing."},
-    )
-    model_base_class: str = field(
-        default="Qwen2.5-7B-Instruct",
-        metadata={"help": "Base model class for prompt formatting."},
-    )
-    task_type: str = field(
-        default="generate_content",
-        metadata={
-            "help": "Type of training task",
-            "choices": ["generate_content", "predict_index"],
-        },
-    )
-    query_key: str = field(
-        default="query",
-        metadata={"help": "Key name for the query field in JSONL."},
-    )
-    docs_key: str = field(
-        default="docs",
-        metadata={"help": "Key name for the documents field in JSONL."},
-    )
-    gold_idx_key: str = field(
-        default="gold_doc_idx",
-        metadata={"help": "Key name for the gold document index field in JSONL."},
-    )
+    return parser.parse_args()
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Fine-tune Qwen 2.5 7B on retrieval task"
-    )
-
-    parser = TrainingArguments.add_argparse_arguments(parser)
-    parser = ModelArguments.add_argparse_arguments(parser)
-    parser = DataTrainingArguments.add_argparse_arguments(parser)
-
-    args = parser.parse_args()
+    args = parse_args()
 
     # Setup logging
     logging.basicConfig(
@@ -166,14 +101,14 @@ def main():
     log_level = args.get_process_log_level()
     logger.setLevel(log_level)
 
-    # Log on each process the small summary
+    # Log on each process
     logger.warning(
         f"Process rank: {args.local_rank}, device: {args.device}, n_gpu: {args.n_gpu}"
         + f"distributed training: {bool(args.local_rank != -1)}, 16-bits training: {args.fp16}"
     )
     logger.info(f"Training parameters: {args}")
 
-    # Detecting last checkpoint
+    # Detect last checkpoint
     last_checkpoint = None
     if os.path.isdir(args.output_dir) and args.do_train and not args.overwrite_output_dir:
         last_checkpoint = get_last_checkpoint(args.output_dir)
@@ -194,19 +129,17 @@ def main():
     # Load tokenizer
     tokenizer_kwargs = {
         "cache_dir": args.cache_dir,
-        "use_fast": args.use_fast_tokenizer,
+        "use_fast": True,
         "revision": args.model_revision,
         "trust_remote_code": args.trust_remote_code,
     }
 
     if args.tokenizer_name:
         tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_name, **tokenizer_kwargs)
-    elif args.model_name_or_path:
-        tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, **tokenizer_kwargs)
     else:
-        raise ValueError("You must specify either tokenizer_name or model_name_or_path")
+        tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, **tokenizer_kwargs)
 
-    # Set pad token if not set
+    # Set pad token
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
         tokenizer.pad_token_id = tokenizer.eos_token_id
@@ -294,7 +227,7 @@ def main():
         attn_implementation=args.attn_implementation,
     )
 
-    # Enable gradient checkpointing for memory efficiency
+    # Enable gradient checkpointing
     if args.gradient_checkpointing:
         model.gradient_checkpointing_enable()
 
@@ -318,10 +251,9 @@ def main():
             checkpoint = last_checkpoint
 
         train_result = trainer.train(resume_from_checkpoint=checkpoint)
+        trainer.save_model()
 
-        trainer.save_model()  # Saves the tokenizer too
         metrics = train_result.metrics
-
         max_train_samples = (
             args.max_train_samples if args.max_train_samples is not None else len(train_dataset)
         )
@@ -334,7 +266,6 @@ def main():
     # Evaluation
     if args.do_eval:
         logger.info("Starting evaluation...")
-
         metrics = trainer.evaluate()
 
         max_eval_samples = (
