@@ -117,14 +117,20 @@ def main():
     )
 
     # Configure LoRA
+    # Handle target_modules - "all-linear" is a special string for Unsloth
+    target_modules = args.target_modules
+    if target_modules == "all-linear":
+        target_modules = ["q_proj", "k_proj", "v_proj", "o_proj",
+                         "gate_proj", "up_proj", "down_proj"]
+
     model = FastLanguageModel.get_peft_model(
         model,
         r=args.lora_r,
-        target_modules=args.target_modules,
+        target_modules=target_modules,
         lora_alpha=args.lora_alpha,
         lora_dropout=args.lora_dropout,
         bias="none",
-        use_gradient_checkpointing="unsloth",  # Unsloth optimized gradient checkpointing
+        use_gradient_checkpointing="unsloth",
         random_state=args.seed,
     )
 
