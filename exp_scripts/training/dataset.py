@@ -51,7 +51,9 @@ class RetrievalFineTuningDataset(Dataset):
         self.examples = examples
         self.tokenizer = tokenizer
         # Use model's max length if not specified
-        self.max_length = max_length if max_length is not None else tokenizer.model_max_length
+        self.max_length = (
+            max_length if max_length is not None else tokenizer.model_max_length
+        )
         self.model_base_class = model_base_class.lower()
         self.include_doc_index = include_doc_index
 
@@ -147,9 +149,7 @@ class RetrievalFineTuningDataset(Dataset):
         # Mask padding tokens (pad_token_id equals eos_token_id after we set it)
         pad_token_id = self.tokenizer.pad_token_id
         labels[0, :] = torch.where(
-            encodings["input_ids"][0] == pad_token_id,
-            torch.tensor(-100),
-            labels[0, :]
+            encodings["input_ids"][0] == pad_token_id, torch.tensor(-100), labels[0, :]
         )
 
         return {
@@ -183,7 +183,9 @@ class RetrievalFineTuningDatasetWithIndex(Dataset):
         self.examples = examples
         self.tokenizer = tokenizer
         # Use model's max length if not specified
-        self.max_length = max_length if max_length is not None else tokenizer.model_max_length
+        self.max_length = (
+            max_length if max_length is not None else tokenizer.model_max_length
+        )
         self.model_base_class = model_base_class.lower()
 
         # Set up prompt formatting based on model
@@ -233,42 +235,52 @@ class RetrievalFineTuningDatasetWithIndex(Dataset):
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         example = self.examples[idx]
 
-        # Format the prompt and target
-        prompt = self._format_prompt(example.query, example.docs)
-        target = self._format_target(example.gold_doc_id)
+        # 1. Get raw text
+        prompt_str = self._format_prompt(example.query, example.docs)
+        target_str = self._format_target(example.gold_doc_id, example.docs)
 
-        # Combine for tokenization
-        full_text = prompt + target + self.assistant_end
+        # 2. Tokenize parts separately (Disable special tokens to avoid double BOS)
+        # We manually constructed the Prompt with <|im_start|>, so we generally
+        # don't want the tokenizer to add another BOS.
+        prompt_ids = self.tokenizer(prompt_str, add_special_tokens=False)["input_ids"]
+        target_ids = self.tokenizer(
+            target_str + self.assistant_end, add_special_tokens=False
+        )["input_ids"]
 
-        # Get prompt length for masking
-        prompt_tokens = self.tokenizer(prompt, add_special_tokens=False)
-        prompt_length = len(prompt_tokens["input_ids"])
+        # 3. Concatenate IDs
+        input_ids = prompt_ids + target_ids
 
-        # Tokenize
-        encodings = self.tokenizer(
-            full_text,
-            truncation=True,
-            max_length=self.max_length,
-            padding="max_length",
-            return_tensors="pt",
-        )
+        # 4. Create Labels
+        # Mask the prompt part with -100
+        labels = [-100] * len(prompt_ids) + target_ids
 
-        # Create labels: only compute loss on the target portion
-        labels = encodings["input_ids"].clone()
-        labels[0, :prompt_length] = -100  # Ignore prompt tokens
+        # 5. Handle Truncation
+        # If the sequence is too long, we truncate.
+        # Standard practice: truncate from the right (end of target) or left (start of prompt)?
+        # For retrieval/RAG, usually we want to keep the prompt (context) intact if possible,
+        # but standard SFT trainers truncate the end.
+        if len(input_ids) > self.max_length:
+            input_ids = input_ids[: self.max_length]
+            labels = labels[: self.max_length]
 
-        # Mask padding tokens
-        pad_token_id = self.tokenizer.pad_token_id
-        labels[0, :] = torch.where(
-            encodings["input_ids"][0] == pad_token_id,
-            torch.tensor(-100),
-            labels[0, :]
-        )
+        # 6. Handle Padding
+        # Create attention mask (1 for real tokens, 0 for pad)
+        attention_mask = [1] * len(input_ids)
 
+        padding_len = self.max_length - len(input_ids)
+        if padding_len > 0:
+            # Pad input_ids with pad_token_id
+            input_ids = input_ids + [self.tokenizer.pad_token_id] * padding_len
+            # Pad labels with -100
+            labels = labels + [-100] * padding_len
+            # Pad attention mask with 0
+            attention_mask = attention_mask + [0] * padding_len
+
+        # 7. Convert to Tensors
         return {
-            "input_ids": encodings["input_ids"].squeeze(0),
-            "attention_mask": encodings["attention_mask"].squeeze(0),
-            "labels": labels.squeeze(0),
+            "input_ids": torch.tensor(input_ids, dtype=torch.long),
+            "attention_mask": torch.tensor(attention_mask, dtype=torch.long),
+            "labels": torch.tensor(labels, dtype=torch.long),
         }
 
 
