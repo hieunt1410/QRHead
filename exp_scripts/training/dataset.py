@@ -36,7 +36,7 @@ class RetrievalFineTuningDataset(Dataset):
         self,
         examples: List[RetrievalTrainingExample],
         tokenizer: PreTrainedTokenizer,
-        max_length: int = 32768,
+        max_length: int = None,
         model_base_class: str = "Qwen2.5-7B-Instruct",
         include_doc_index: bool = True,
     ):
@@ -44,13 +44,14 @@ class RetrievalFineTuningDataset(Dataset):
         Args:
             examples: List of training examples
             tokenizer: The tokenizer to use
-            max_length: Maximum sequence length
+            max_length: Maximum sequence length (defaults to tokenizer.model_max_length)
             model_base_class: Base model class for prompt formatting
             include_doc_index: Whether to include document ID in the target output
         """
         self.examples = examples
         self.tokenizer = tokenizer
-        self.max_length = max_length
+        # Use model's max length if not specified
+        self.max_length = max_length if max_length is not None else tokenizer.model_max_length
         self.model_base_class = model_base_class.lower()
         self.include_doc_index = include_doc_index
 
@@ -169,19 +170,20 @@ class RetrievalFineTuningDatasetWithIndex(Dataset):
         self,
         examples: List[RetrievalTrainingExample],
         tokenizer: PreTrainedTokenizer,
-        max_length: int = 32768,
+        max_length: int = None,
         model_base_class: str = "Qwen2.5-7B-Instruct",
     ):
         """
         Args:
             examples: List of training examples
             tokenizer: The tokenizer to use
-            max_length: Maximum sequence length
+            max_length: Maximum sequence length (defaults to tokenizer.model_max_length)
             model_base_class: Base model class for prompt formatting
         """
         self.examples = examples
         self.tokenizer = tokenizer
-        self.max_length = max_length
+        # Use model's max length if not specified
+        self.max_length = max_length if max_length is not None else tokenizer.model_max_length
         self.model_base_class = model_base_class.lower()
 
         # Set up prompt formatting based on model

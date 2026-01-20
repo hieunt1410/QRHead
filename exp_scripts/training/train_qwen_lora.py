@@ -80,8 +80,8 @@ def parse_args():
                         help="Path to the training file (JSON format)")
     parser.add_argument("--validation_file", type=str, default=None,
                         help="Path to the validation file (JSON format)")
-    parser.add_argument("--max_length", type=int, default=8192,
-                        help="Maximum sequence length (Qwen max is 131072)")
+    parser.add_argument("--max_length", type=int, default=None,
+                        help="Maximum sequence length (defaults to model max)")
     parser.add_argument("--max_train_samples", type=int, default=None,
                         help="Truncate the number of training examples")
     parser.add_argument("--max_eval_samples", type=int, default=None,
