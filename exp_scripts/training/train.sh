@@ -5,8 +5,8 @@
 
 # Model and data paths
 MODEL_NAME="Qwen/Qwen2.5-7B-Instruct"
-TRAIN_FILE="data/train.jsonl"
-VALID_FILE="data/valid.jsonl"
+TRAIN_FILE="data/train.json"
+VALID_FILE="data/valid.json"
 OUTPUT_DIR="outputs/qwen25-7b-retrieval"
 
 # Create output directory
