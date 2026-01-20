@@ -82,8 +82,57 @@ def parse_args():
     parser.add_argument("--gold_idx_key", type=str, default="gold_doc_idx",
                         help="Key name for the gold document index field in JSONL")
 
-    # Add all TrainingArguments
-    parser = TrainingArguments.add_argparse_arguments(parser)
+    # Training arguments
+    parser.add_argument("--output_dir", type=str, required=True,
+                        help="Output directory for checkpoints and logs")
+    parser.add_argument("--overwrite_output_dir", action="store_true",
+                        help="Overwrite output directory if it exists")
+    parser.add_argument("--do_train", action="store_true",
+                        help="Whether to run training")
+    parser.add_argument("--do_eval", action="store_true",
+                        help="Whether to run evaluation")
+    parser.add_argument("--per_device_train_batch_size", type=int, default=8,
+                        help="Batch size per GPU/TPU core/CPU for training")
+    parser.add_argument("--per_device_eval_batch_size", type=int, default=8,
+                        help="Batch size per GPU/TPU core/CPU for evaluation")
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=1,
+                        help="Number of updates steps to accumulate before performing a backward/update pass")
+    parser.add_argument("--learning_rate", type=float, default=5e-5,
+                        help="The initial learning rate for AdamW")
+    parser.add_argument("--weight_decay", type=float, default=0.0,
+                        help="Weight decay for AdamW")
+    parser.add_argument("--num_train_epochs", type=float, default=3.0,
+                        help="Total number of training epochs to perform")
+    parser.add_argument("--max_steps", type=int, default=-1,
+                        help="If > 0: set total number of training steps to perform")
+    parser.add_argument("--warmup_ratio", type=float, default=0.0,
+                        help="Linear warmup over warmup_ratio fraction of total steps")
+    parser.add_argument("--warmup_steps", type=int, default=0,
+                        help="Linear warmup over warmup_steps")
+    parser.add_argument("--logging_steps", type=int, default=500,
+                        help="Log every X updates steps")
+    parser.add_argument("--save_steps", type=int, default=500,
+                        help="Save checkpoint every X updates steps")
+    parser.add_argument("--save_total_limit", type=int, default=None,
+                        help="Limit the total amount of checkpoints")
+    parser.add_argument("--eval_steps", type=int, default=None,
+                        help="Run an evaluation every X steps")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Random seed for initialization")
+    parser.add_argument("--fp16", action="store_true",
+                        help="Whether to use fp16 mixed precision training")
+    parser.add_argument("--bf16", action="store_true",
+                        help="Whether to use bf16 mixed precision training")
+    parser.add_argument("--gradient_checkpointing", action="store_true",
+                        help="Whether to use gradient checkpointing")
+    parser.add_argument("--resume_from_checkpoint", type=str, default=None,
+                        help="Path to checkpoint for resuming training")
+    parser.add_argument("--local_rank", type=int, default=-1,
+                        help="For distributed training: local_rank")
+    parser.add_argument("--report_to", type=str, default=None,
+                        help="The integration to report results to")
+    parser.add_argument("--run_name", type=str, default=None,
+                        help="Name of the run for reporting")
 
     return parser.parse_args()
 
@@ -97,15 +146,9 @@ def main():
         datefmt="%Y-%m-%d %H:%M:%S",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
-
-    log_level = args.get_process_log_level()
-    logger.setLevel(log_level)
+    logger.setLevel(logging.INFO)
 
     # Log on each process
-    logger.warning(
-        f"Process rank: {args.local_rank}, device: {args.device}, n_gpu: {args.n_gpu}"
-        + f"distributed training: {bool(args.local_rank != -1)}, 16-bits training: {args.fp16}"
-    )
     logger.info(f"Training parameters: {args}")
 
     # Detect last checkpoint
@@ -231,10 +274,37 @@ def main():
     if args.gradient_checkpointing:
         model.gradient_checkpointing_enable()
 
+    # Create TrainingArguments
+    training_args = TrainingArguments(
+        output_dir=args.output_dir,
+        overwrite_output_dir=args.overwrite_output_dir,
+        do_train=args.do_train,
+        do_eval=args.do_eval,
+        per_device_train_batch_size=args.per_device_train_batch_size,
+        per_device_eval_batch_size=args.per_device_eval_batch_size,
+        gradient_accumulation_steps=args.gradient_accumulation_steps,
+        learning_rate=args.learning_rate,
+        weight_decay=args.weight_decay,
+        num_train_epochs=args.num_train_epochs,
+        max_steps=args.max_steps,
+        warmup_ratio=args.warmup_ratio,
+        warmup_steps=args.warmup_steps,
+        logging_steps=args.logging_steps,
+        save_steps=args.save_steps,
+        save_total_limit=args.save_total_limit,
+        eval_steps=args.eval_steps,
+        seed=args.seed,
+        fp16=args.fp16,
+        bf16=args.bf16,
+        gradient_checkpointing=args.gradient_checkpointing,
+        report_to=args.report_to,
+        run_name=args.run_name,
+    )
+
     # Initialize Trainer
     trainer = Trainer(
         model=model,
-        args=args,
+        args=training_args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         tokenizer=tokenizer,
