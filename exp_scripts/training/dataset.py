@@ -145,9 +145,11 @@ class RetrievalFineTuningDataset(Dataset):
         labels = encodings["input_ids"].clone()
         labels[0, :prompt_length] = -100  # -100 is the ignore index in PyTorch
 
-        # Pad token ID handling
-        if self.tokenizer.pad_token_id is None:
-            labels[labels == self.tokenizer.eos_token_id] = -100
+        # Also mask out padding tokens (tokens that come after the actual content)
+        # Find actual sequence length (non-padding tokens)
+        attention_mask = encodings["attention_mask"][0]
+        seq_len = attention_mask.sum().item()  # Number of non-padding tokens
+        labels[0, seq_len:] = -100  # Mask padding tokens
 
         return {
             "input_ids": encodings["input_ids"].squeeze(0),
@@ -254,9 +256,10 @@ class RetrievalFineTuningDatasetWithIndex(Dataset):
         labels = encodings["input_ids"].clone()
         labels[0, :prompt_length] = -100
 
-        # Handle pad tokens
-        if self.tokenizer.pad_token_id is None:
-            labels[labels == self.tokenizer.eos_token_id] = -100
+        # Also mask out padding tokens (tokens that come after the actual content)
+        attention_mask = encodings["attention_mask"][0]
+        seq_len = attention_mask.sum().item()  # Number of non-padding tokens
+        labels[0, seq_len:] = -100  # Mask padding tokens
 
         return {
             "input_ids": encodings["input_ids"].squeeze(0),
