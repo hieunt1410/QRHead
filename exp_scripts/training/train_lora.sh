@@ -14,10 +14,10 @@ mkdir -p $OUTPUT_DIR
 
 # Training hyperparameters (optimized for memory efficiency)
 BATCH_SIZE=1              # Per-device batch size
-GRAD_ACCUM=4             # Gradient accumulation (effective batch size = 1 * 16 = 16)
+GRAD_ACCUM=2             # Gradient accumulation (effective batch size = 1 * 16 = 16)
 NUM_EPOCHS=3              # Number of training epochs
 LEARNING_RATE=2e-4        # Learning rate (higher for LoRA)
-MAX_LENGTH=16392           # Maximum sequence length (reduced for memory)
+MAX_LENGTH=32768           # Maximum sequence length (reduced for memory)
 WARMUP_RATIO=0.03         # Warmup ratio
 
 # LoRA hyperparameters
