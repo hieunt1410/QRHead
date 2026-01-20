@@ -219,7 +219,7 @@ def main():
         lr_scheduler_type="linear",
         report_to="none",
         save_strategy="steps",
-        evaluation_strategy="steps" if eval_dataset else "no",
+        eval_strategy="steps" if eval_dataset else "no",
         eval_steps=args.save_steps if eval_dataset else None,
         do_eval=True if eval_dataset else False,
     )
