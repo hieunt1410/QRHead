@@ -20,7 +20,7 @@ class RetrievalTrainingExample:
     docs: List[
         Dict[str, str]
     ]  # List of {"paragraph_text": str, "title": Optional[str], "idx": int}
-    gold_doc_idx: int  # Index of the gold document in docs list
+    gold_doc_idx: str  # Index of the gold document in docs list
 
 
 class RetrievalFineTuningDataset(Dataset):
