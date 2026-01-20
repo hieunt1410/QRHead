@@ -20,6 +20,7 @@ def compute_recall(samples: List[Dict[str, Any]], scores: Dict[str, Dict[str, fl
     for sample in samples:
         qid = str(sample.get('idx'))
         gt_docs = sample.get('gt_docs', [])
+        gt_docs = [item["law_id"] + "_article_" + str(item["article_id"]) for item in gt_docs]
             
         # Convert gt_docs to strings to match scores keys
         gt_docs = [str(ch) for ch in gt_docs]
