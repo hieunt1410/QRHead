@@ -1,8 +1,11 @@
 """
-Dataset module for fine-tuning Qwen 2.5 7B on retrieval task.
+Dataset module for fine-tuning Qwen 2.5 / Qwen 3 on retrieval task.
 
 The task is: given a query and top-k retrieved articles, the model should output
 the gold/relevant article.
+
+Qwen 2.5: Uses custom prompt format (no chat template)
+Qwen 3: Uses chat template with conversations format
 """
 
 from dataclasses import dataclass
@@ -22,15 +25,15 @@ class RetrievalTrainingExample:
     gold_doc_id: str  # ID of the gold document (string like "doc1", "123", etc.)
 
 
-def formatting_conversations(
+def format_prompt_text(
     query: str,
     docs: List[Dict[str, str]],
     gold_doc_id: str,
     separator: str = "\n",
     include_doc_index: bool = True,
-) -> List[Dict[str, str]]:
+) -> str:
     """
-    Format the prompt for Qwen model.
+    Format as a single text string (for Qwen 2.5 without chat template).
 
     Args:
         query: The user query
@@ -41,6 +44,53 @@ def formatting_conversations(
 
     Returns:
         Formatted text string
+    """
+    # Build the user prompt
+    prompt = "Here are some paragraphs:\n\n### Paragraphs:"
+
+    for doc in docs:
+        paragraph_text = doc["paragraph_text"]
+        doc_id = doc.get("idx", "")
+        if doc.get("title"):
+            paragraph_text = doc["title"] + "\n" + paragraph_text
+        doc_str = f"[{doc_id}] {paragraph_text}"
+        prompt += separator + doc_str
+
+    instruction = "\n\nPlease find information that are relevant to the following query in the paragraphs above."
+    prompt += instruction + separator + "Query: " + query
+
+    # Add the gold document ID as the target
+    if include_doc_index:
+        target = f"[{gold_doc_id}]"
+    else:
+        # Find the gold document content
+        doc = next((d for d in docs if d.get("idx") == gold_doc_id), None)
+        if doc is None:
+            raise ValueError(f"Gold document ID '{gold_doc_id}' not found in docs")
+        target = f"[{gold_doc_id}] " + doc["paragraph_text"]
+
+    return prompt + "\n" + "The answer is: " + target
+
+
+def format_conversations(
+    query: str,
+    docs: List[Dict[str, str]],
+    gold_doc_id: str,
+    separator: str = "\n",
+    include_doc_index: bool = True,
+) -> List[Dict[str, str]]:
+    """
+    Format as conversations (for Qwen 3 with chat template).
+
+    Args:
+        query: The user query
+        docs: List of retrieved documents
+        gold_doc_id: The gold document ID
+        separator: Separator between documents
+        include_doc_index: Whether to include document ID in output
+
+    Returns:
+        List of conversation messages with role and content
     """
     # Build the user prompt
     prompt = "Here are some paragraphs:\n\n### Paragraphs:"
@@ -74,61 +124,15 @@ def formatting_conversations(
     return conversation
 
 
-def formatting_prompts(
-    query: str,
-    docs: List[Dict[str, str]],
-    gold_doc_id: str,
-    separator: str = "\n",
-    include_doc_index: bool = True,
-) -> str:
-    """
-    Format as a single text string (for non-chat models).
-
-    Args:
-        query: The user query
-        docs: List of retrieved documents
-        gold_doc_id: The gold document ID
-        separator: Separator between documents
-        include_doc_index: Whether to include document ID in output
-
-    Returns:
-        Formatted text string
-    """
-    # Build the user prompt
-    prompt = "Here are some paragraphs:\n\n### Paragraphs:"
-
-    for doc in docs:
-        paragraph_text = doc["paragraph_text"]
-        doc_id = doc.get("idx", "")
-        if doc.get("title"):
-            paragraph_text = doc["title"] + "\n" + paragraph_text
-        doc_str = f"[{doc_id}] {paragraph_text}"
-        prompt += separator + doc_str
-
-    instruction = "\n\nPlease find information that are relevant to the following query in the paragraphs above."
-    prompt += instruction + separator + "Query: " + query
-
-    # Add the gold document ID as the target
-    if include_doc_index:
-        target = f"[{gold_doc_id}]"
-    else:
-        # Find the gold document content
-        doc = next((d for d in docs if d.get("idx") == gold_doc_id), None)
-        if doc is None:
-            raise ValueError(f"Gold document ID '{gold_doc_id}' not found in docs")
-        target = f"[{gold_doc_id}] " + doc["paragraph_text"]
-
-    return prompt + "\n" + target
-
-
 def load_examples_as_dataset(
     file_path: str,
     query_key: str = "query",
     docs_key: str = "docs",
     gold_idx_key: str = "gold_doc_idx",
-    model_base_class: str = "Qwen2.5-7B-Instruct",  # Kept for backward compatibility
+    model_base_class: str = "Qwen2.5-7B-Instruct",
     include_doc_index: bool = True,
     tokenizer: Optional[PreTrainedTokenizer] = None,
+    enable_thinking: bool = False,  # Qwen 3 specific: enable thinking mode for reasoning
 ):
     """
     Load training examples from a JSON or JSONL file and return a datasets.Dataset.
@@ -149,9 +153,10 @@ def load_examples_as_dataset(
         query_key: Key name for the query field
         docs_key: Key name for the documents field
         gold_idx_key: Key name for the gold document ID field
-        model_base_class: Base model class (unused, kept for backward compatibility)
+        model_base_class: Base model class (used to detect Qwen 3 for chat template)
         include_doc_index: Whether to include document ID in the target output
-        tokenizer: Tokenizer for applying chat template (required)
+        tokenizer: Tokenizer for applying chat template (required for Qwen 3)
+        enable_thinking: For Qwen 3, enable thinking/reasoning mode
 
     Returns:
         datasets.Dataset with formatted "text" column
@@ -159,11 +164,6 @@ def load_examples_as_dataset(
     import json
 
     from datasets import Dataset
-
-    if tokenizer is None:
-        raise ValueError(
-            "tokenizer is required to apply chat template for all models"
-        )
 
     examples = []
     if file_path.endswith(".jsonl"):
@@ -180,49 +180,90 @@ def load_examples_as_dataset(
     # Convert to datasets.Dataset
     dataset = Dataset.from_list(examples)
 
-    def formatting_conversations_func(examples_batch):
-        queries = examples_batch[query_key]
-        docs_list = examples_batch[docs_key]
-        gold_ids_list = examples_batch[gold_idx_key]
+    # Detect model type
+    model_lower = model_base_class.lower()
+    is_qwen3 = "qwen3" in model_lower or "qwen-3" in model_lower or "qwen 3" in model_lower
 
-        conversations = []
+    if is_qwen3:
+        # Qwen 3: Use chat template with conversations format
+        if tokenizer is None:
+            raise ValueError("tokenizer is required for Qwen 3")
 
-        for query, docs, gold_ids in zip(queries, docs_list, gold_ids_list):
-            # Handle both single string and list of strings
-            if isinstance(gold_ids, str):
-                gold_ids = [gold_ids]
-            for gold_id in gold_ids:
-                conversation = formatting_conversations(
-                    query=query,
-                    docs=docs,
-                    gold_doc_id=gold_id,
-                    separator="\n",
-                    include_doc_index=include_doc_index,
-                )
-                conversations.append(conversation)
+        def formatting_conversations_func(examples_batch):
+            queries = examples_batch[query_key]
+            docs_list = examples_batch[docs_key]
+            gold_ids_list = examples_batch[gold_idx_key]
 
-        return {"conversations": conversations}
+            conversations = []
 
-    # Create conversations column
-    dataset = dataset.map(
-        formatting_conversations_func,
-        batched=True,
-        remove_columns=dataset.column_names,
-    )
+            for query, docs, gold_ids in zip(queries, docs_list, gold_ids_list):
+                # Handle both single string and list of strings
+                if isinstance(gold_ids, str):
+                    gold_ids = [gold_ids]
+                for gold_id in gold_ids:
+                    conversation = format_conversations(
+                        query=query,
+                        docs=docs,
+                        gold_doc_id=gold_id,
+                        separator="\n",
+                        include_doc_index=include_doc_index,
+                    )
+                    conversations.append(conversation)
 
-    # Apply chat template to create text column
-    def apply_chat_template_func(examples_batch):
-        texts = tokenizer.apply_chat_template(
-            examples_batch["conversations"],
-            tokenize=False,
-            add_generation_prompt=False,
+            return {"conversations": conversations}
+
+        # Create conversations column
+        dataset = dataset.map(
+            formatting_conversations_func,
+            batched=True,
+            remove_columns=dataset.column_names,
         )
-        return {"text": texts}
 
-    dataset = dataset.map(
-        apply_chat_template_func,
-        batched=True,
-        remove_columns=["conversations"],
-    )
+        # Apply chat template to create text column
+        chat_template_kwargs = {
+            "tokenize": False,
+            "add_generation_prompt": False,
+        }
+
+        if enable_thinking:
+            chat_template_kwargs["enable_thinking"] = True
+
+        texts = tokenizer.apply_chat_template(
+            list(dataset["conversations"]),
+            **chat_template_kwargs,
+        )
+
+        dataset = Dataset.from_dict({"text": texts})
+
+    else:
+        # Qwen 2.5 and others: Use direct text formatting (no chat template)
+        def formatting_prompts_func(examples_batch):
+            queries = examples_batch[query_key]
+            docs_list = examples_batch[docs_key]
+            gold_ids_list = examples_batch[gold_idx_key]
+
+            texts = []
+
+            for query, docs, gold_ids in zip(queries, docs_list, gold_ids_list):
+                # Handle both single string and list of strings
+                if isinstance(gold_ids, str):
+                    gold_ids = [gold_ids]
+                for gold_id in gold_ids:
+                    text = format_prompt_text(
+                        query=query,
+                        docs=docs,
+                        gold_doc_id=gold_id,
+                        separator="\n",
+                        include_doc_index=include_doc_index,
+                    )
+                    texts.append(text)
+
+            return {"text": texts}
+
+        dataset = dataset.map(
+            formatting_prompts_func,
+            batched=True,
+            remove_columns=dataset.column_names,
+        )
 
     return dataset
