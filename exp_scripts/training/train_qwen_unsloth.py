@@ -2,6 +2,7 @@
 Training script for fine-tuning Qwen 2.5 using Unsloth + LoRA.
 """
 
+import os
 import argparse
 import logging
 import sys
@@ -190,11 +191,11 @@ def main():
             logger.info(f"Pushing to HuggingFace Hub: {args.hub_model_id}")
             model.push_to_hub(
                 args.hub_model_id,
-                token=args.hub_token,
+                token=args.hub_token or os.getenv("HF_TOKEN"),
             )
             tokenizer.push_to_hub(
                 args.hub_model_id,
-                token=args.hub_token,
+                token=args.hub_token or os.getenv("HF_TOKEN"),
             )
             logger.info("Successfully pushed to HuggingFace Hub!")
 
