@@ -2,4 +2,4 @@
 
 attn_head_set: "16-19,16-2,16-20,16-14,16-0,15-24,16-18,17-18,16-1,19-18,19-19,18-16,16-17,19-25,19-17,20-21" # top16
 model_base_class: "Qwen2.5-7B-Instruct"
-model_name_or_path: "hieungo1410/qwen3-14b-finetuned-alqac-2k"
+model_name_or_path: "hieungo1410/qwen2-5-7b-finetuned-alqac-2k"
