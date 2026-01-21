@@ -8,18 +8,20 @@ TRAIN_FILE="data/train.json"
 VALID_FILE="data/valid.json"
 OUTPUT_DIR="outputs/qwen25-7b-unsloth-lora"
 
+HUB_MODEL_ID="hieungo1410/qwen2-7b-finetuned-alqac-2k"  # e.g., "your-username/qwen3-14b-retrieval"
+
 mkdir -p $OUTPUT_DIR
 
 # Hyperparameters
 BATCH_SIZE=1
 GRAD_ACCUM=2
-NUM_EPOCHS=3
+NUM_EPOCHS=1
 LEARNING_RATE=2e-4
 MAX_SEQ_LENGTH=8192
 
 # LoRA config
 LORA_R=16
-LORA_ALPHA=32
+LORA_ALPHA=16
 LORA_DROPOUT=0.0
 
 echo "Training with Unsloth..."
@@ -44,4 +46,6 @@ python exp_scripts/training/train_qwen_unsloth.py \
     --warmup_steps 10 \
     --logging_steps 10 \
     --save_steps 100 \
+    --hub_model_id $HUB_MODEL_ID \
+    --push_to_hub \
     "$@"
