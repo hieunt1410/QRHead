@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from dataset import load_examples_as_dataset
+from huggingface_hub import login
 from unsloth import FastLanguageModel
 from trl import SFTConfig, SFTTrainer
 
@@ -188,14 +189,20 @@ def main():
         if args.hub_model_id is None:
             logger.warning("--hub_model_id is required for push_to_hub. Skipping...")
         else:
+            # Login to HuggingFace
+            hf_token = args.hub_token or os.getenv("HF_TOKEN")
+            if hf_token:
+                login(token=hf_token)
+                logger.info("Logged in to HuggingFace")
+
             logger.info(f"Pushing to HuggingFace Hub: {args.hub_model_id}")
             model.push_to_hub(
                 args.hub_model_id,
-                token=args.hub_token or os.getenv("HF_TOKEN"),
+                token=hf_token,
             )
             tokenizer.push_to_hub(
                 args.hub_model_id,
-                token=args.hub_token or os.getenv("HF_TOKEN"),
+                token=hf_token,
             )
             logger.info("Successfully pushed to HuggingFace Hub!")
 
