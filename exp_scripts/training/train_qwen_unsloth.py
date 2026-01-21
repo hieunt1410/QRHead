@@ -112,17 +112,12 @@ def main():
     # 3. Load & Prepare Data
     logger.info(f"Loading data from {args.train_file}")
 
-    # Detect if this is a chat model for proper dataset formatting
-    model_base = args.model_name.lower()
-    is_chat_model = (
-        "qwen" in model_base and ("2" in model_base or "3" in model_base)
-    ) or "llama-3" in model_base or "instruct" in model_base
-
-    # Load dataset with formatted text column or conversations column
+    # Load dataset with formatted text column (chat template applied)
     train_dataset = load_examples_as_dataset(
         args.train_file,
         model_base_class=args.model_name,
         include_doc_index=(args.task_type == "predict_index"),
+        tokenizer=tokenizer,
     )
 
     if args.max_train_samples:
@@ -134,12 +129,13 @@ def main():
             args.validation_file,
             model_base_class=args.model_name,
             include_doc_index=(args.task_type == "predict_index"),
+            tokenizer=tokenizer,
         )
         if args.max_eval_samples:
             eval_dataset = eval_dataset.select(range(min(args.max_eval_samples, len(eval_dataset))))
 
+    logger.info(f"Train dataset size: {len(train_dataset)}")
     logger.info(f"Dataset columns: {train_dataset.column_names}")
-    logger.info(f"Is chat model: {is_chat_model}")
 
     # 4. Training Arguments
     training_args = SFTConfig(
@@ -161,21 +157,15 @@ def main():
     )
 
     # 5. Initialize Trainer
-    # For chat models with conversations column, SFTTrainer applies chat template automatically
-    # For non-chat models with text column, use dataset_text_field
-    trainer_kwargs = {
-        "model": model,
-        "args": training_args,
-        "train_dataset": train_dataset,
-        "eval_dataset": eval_dataset,
-        "max_seq_length": args.max_seq_length,
-        "tokenizer": tokenizer,
-    }
-
-    if not is_chat_model:
-        trainer_kwargs["dataset_text_field"] = "text"
-
-    trainer = SFTTrainer(**trainer_kwargs)
+    trainer = SFTTrainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
+        dataset_text_field="text",
+        max_seq_length=args.max_seq_length,
+        tokenizer=tokenizer,
+    )
 
     # 6. Train
     logger.info("Starting training...")

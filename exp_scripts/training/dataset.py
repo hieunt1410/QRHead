@@ -126,7 +126,7 @@ def load_examples_as_dataset(
     query_key: str = "query",
     docs_key: str = "docs",
     gold_idx_key: str = "gold_doc_idx",
-    model_base_class: str = "Qwen2.5-7B-Instruct",
+    model_base_class: str = "Qwen2.5-7B-Instruct",  # Kept for backward compatibility
     include_doc_index: bool = True,
     tokenizer: Optional[PreTrainedTokenizer] = None,
 ):
@@ -149,8 +149,9 @@ def load_examples_as_dataset(
         query_key: Key name for the query field
         docs_key: Key name for the documents field
         gold_idx_key: Key name for the gold document ID field
-        model_base_class: Base model class for prompt formatting
+        model_base_class: Base model class (unused, kept for backward compatibility)
         include_doc_index: Whether to include document ID in the target output
+        tokenizer: Tokenizer for applying chat template (required)
 
     Returns:
         datasets.Dataset with formatted "text" column
@@ -158,6 +159,11 @@ def load_examples_as_dataset(
     import json
 
     from datasets import Dataset
+
+    if tokenizer is None:
+        raise ValueError(
+            "tokenizer is required to apply chat template for all models"
+        )
 
     examples = []
     if file_path.endswith(".jsonl"):
@@ -173,34 +179,6 @@ def load_examples_as_dataset(
 
     # Convert to datasets.Dataset
     dataset = Dataset.from_list(examples)
-
-    # Define the formatting function based on model type
-    def formatting_prompts_func(examples_batch):
-        queries = examples_batch[query_key]
-        docs_list = examples_batch[docs_key]
-        gold_ids_list = examples_batch[gold_idx_key]
-
-        texts = []
-        model_base = model_base_class.lower()
-
-        # Set up separator based on model
-        for query, docs, gold_ids in zip(queries, docs_list, gold_ids_list):
-            # Handle both single string and list of strings
-            if isinstance(gold_ids, str):
-                gold_ids = [gold_ids]
-
-            # Create a training example for each gold ID
-            for gold_id in gold_ids:
-                text = formatting_prompts(
-                    query=query,
-                    docs=docs,
-                    gold_doc_id=gold_id,
-                    separator="\n",
-                    include_doc_index=include_doc_index,
-                )
-                texts.append(text)
-
-        return {"text": texts}
 
     def formatting_conversations_func(examples_batch):
         queries = examples_batch[query_key]
@@ -225,41 +203,26 @@ def load_examples_as_dataset(
 
         return {"conversations": conversations}
 
-    # First, create conversations column
+    # Create conversations column
     dataset = dataset.map(
         formatting_conversations_func,
         batched=True,
         remove_columns=dataset.column_names,
     )
 
-    # Check if this is a chat model (Qwen 2.5, Qwen 3, Llama 3, etc.)
-    model_base = model_base_class.lower()
-    is_chat_model = (
-        "qwen" in model_base and ("2" in model_base or "3" in model_base)
-    ) or "llama-3" in model_base or "instruct" in model_base
-
-    if is_chat_model:
-        # For chat models, return dataset with "conversations" column
-        # SFTTrainer will apply chat_template automatically
-        return dataset
-    else:
-        # For non-chat models, apply chat template manually to create "text" column
-        if tokenizer is None:
-            raise ValueError(
-                "tokenizer is required for non-chat models to create text column"
-            )
-
-        def apply_chat_template_func(examples_batch):
-            texts = tokenizer.apply_chat_template(
-                examples_batch["conversations"],
-                tokenize=False,
-                add_generation_prompt=False,
-            )
-            return {"text": texts}
-
-        dataset = dataset.map(
-            apply_chat_template_func,
-            batched=True,
-            remove_columns=["conversations"],
+    # Apply chat template to create text column
+    def apply_chat_template_func(examples_batch):
+        texts = tokenizer.apply_chat_template(
+            examples_batch["conversations"],
+            tokenize=False,
+            add_generation_prompt=False,
         )
-        return dataset
+        return {"text": texts}
+
+    dataset = dataset.map(
+        apply_chat_template_func,
+        batched=True,
+        remove_columns=["conversations"],
+    )
+
+    return dataset
