@@ -57,18 +57,10 @@ class AttnBasedRetriever:
         else:
             raise ValueError(f"Unsupported model class: {self.model_base_class}")
 
-        # For finetuned models (e.g., from Unsloth), use base model tokenizer to avoid compatibility issues
-        tokenizer_path = self.model_name_or_path
-        if self.model_base_class.lower() == "qwen2.5-7b-instruct":
-            tokenizer_path = "Qwen/Qwen2.5-7B-Instruct"
-        elif self.model_base_class.lower() in ["llama-3.1-8b-instruct", "llama-3.1-70b-instruct"]:
-            tokenizer_path = "meta-llama/Llama-3.1-8B-Instruct"
-        elif self.model_base_class.lower() == "llama-3.2-3b-instruct":
-            tokenizer_path = "meta-llama/Llama-3.2-3B-Instruct"
-        elif self.model_base_class.lower() == "llama-3.2-1b-instruct":
-            tokenizer_path = "meta-llama/Llama-3.2-1B-Instruct"
+        self.tokenizer = transformers.AutoTokenizer.from_pretrained(
+            self.model_name_or_path
+        )
 
-        self.tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer_path)
         self.llm = BaseClass.from_pretrained(
             self.model_name_or_path,
             torch_dtype=torch.float16,

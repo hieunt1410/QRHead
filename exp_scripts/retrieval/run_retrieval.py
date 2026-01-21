@@ -42,9 +42,9 @@ def main():
     # Subsample to 512 data instances for BEIR
     #####################################################################
     if args.data_type == "beir":
-        if len(data_instances) > 512:
+        if len(data_instances) > 1000:
             np.random.seed(42)
-            indices = np.random.choice(len(data_instances), 512, replace=False)
+            indices = np.random.choice(len(data_instances), 1000, replace=False)
             data_instances = [data_instances[i] for i in indices]
 
     results = {}
