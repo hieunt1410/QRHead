@@ -126,8 +126,8 @@ def format_conversations(
 
 def load_examples_as_dataset(
     file_path: str,
-    query_key: str = "query",
-    docs_key: str = "docs",
+    query_key: str = "question",
+    docs_key: str = "paragraphs",
     gold_idx_key: str = "gold_doc_idx",
     model_base_class: str = "Qwen2.5-7B-Instruct",
     include_doc_index: bool = True,
