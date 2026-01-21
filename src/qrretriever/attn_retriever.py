@@ -52,7 +52,7 @@ class AttnBasedRetriever:
             "llama-3.2-1b-instruct",
         ]:
             BaseClass = LlamaForCausalLM
-        elif self.model_base_class.lower() in ["qwen2.5-7b-instruct"]:
+        elif self.model_base_class.lower() in ["qwen2.5-7b-instruct", "qwen2-0.5b-instruct"]:
             BaseClass = Qwen2ForCausalLM
         else:
             raise ValueError(f"Unsupported model class: {self.model_base_class}")
@@ -136,7 +136,7 @@ class AttnBasedRetriever:
             self.prompt_suffix = (
                 "<|eot_id|><|start_header_id|>assistant<|end_header_id|>"
             )
-        elif self.model_base_class.lower() in ["qwen2.5-7b-instruct"]:
+        elif self.model_base_class.lower() in ["qwen2.5-7b-instruct", "qwen2-0.5b-instruct"]:
             self.prompt_prefix = "<|im_start|>user"
             self.prompt_suffix = "<|im_end|>\n<|im_start|>assistant"
         else:
@@ -153,7 +153,7 @@ class AttnBasedRetriever:
             "llama-3.2-1b-instruct",
         ]:
             self.prompt_separator = " \n\n"
-        elif self.model_base_class.lower() in ["qwen2.5-7b-instruct"]:
+        elif self.model_base_class.lower() in ["qwen2.5-7b-instruct", "qwen2-0.5b-instruct"]:
             self.prompt_separator = "\n\n"
         else:
             self.prompt_separator = "\n\n"
@@ -559,6 +559,10 @@ class FullHeadRetriever(AttnBasedRetriever):
                     config = load_config(
                         CONFIG_DIR / "Qwen2.5-7B-Instruct_full_head.yaml"
                     )
+                elif model_base_class.lower() == "qwen2-0.5b-instruct":
+                    config = load_config(
+                        CONFIG_DIR / "Qwen2-0.5B-Instruct_full_head.yaml"
+                    )
                 else:
                     raise NotImplementedError(
                         f"Config inference for model_base_class {model_base_class} is not implemented."
@@ -584,6 +588,10 @@ class FullHeadRetriever(AttnBasedRetriever):
                 elif "qwen2.5-7b-instruct" in model_name_or_path.lower():
                     config = load_config(
                         CONFIG_DIR / "Qwen2.5-7B-Instruct_full_head.yaml"
+                    )
+                elif "qwen2-0.5b-instruct" in model_name_or_path.lower():
+                    config = load_config(
+                        CONFIG_DIR / "Qwen2-0.5B-Instruct_full_head.yaml"
                     )
                 else:
                     raise NotImplementedError(
@@ -653,6 +661,10 @@ class QRRetriever(AttnBasedRetriever):
                     config = load_config(
                         CONFIG_DIR / "Qwen2.5-7B-Instruct_qr_head_LME.yaml"
                     )
+                elif model_base_class.lower() == "qwen2-0.5b-instruct":
+                    config = load_config(
+                        CONFIG_DIR / "Qwen2-0.5B-Instruct_qr_head_LME.yaml"
+                    )
                 else:
                     raise NotImplementedError(
                         f"Config inference for model_base_class {model_base_class} is not implemented."
@@ -678,6 +690,10 @@ class QRRetriever(AttnBasedRetriever):
                 elif "qwen2.5-7b-instruct" in model_name_or_path.lower():
                     config = load_config(
                         CONFIG_DIR / "Qwen2.5-7B-Instruct_qr_head_LME.yaml"
+                    )
+                elif "qwen2-0.5b-instruct" in model_name_or_path.lower():
+                    config = load_config(
+                        CONFIG_DIR / "Qwen2-0.5B-Instruct_qr_head_LME.yaml"
                     )
                 else:
                     raise NotImplementedError(
