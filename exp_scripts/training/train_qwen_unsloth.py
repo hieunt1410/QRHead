@@ -65,6 +65,12 @@ def parse_args():
     parser.add_argument("--logging_steps", type=int, default=1)
     parser.add_argument("--save_steps", type=int, default=100)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--hub_model_id", type=str, default=None,
+                       help="HuggingFace Hub model ID (e.g., 'username/model-name')")
+    parser.add_argument("--hub_token", type=str, default=None,
+                       help="HuggingFace Hub token. Use HF_TOKEN env var if not specified.")
+    parser.add_argument("--push_to_hub", action="store_true",
+                       help="Push model to HuggingFace Hub after training")
 
     return parser.parse_args()
 
@@ -175,6 +181,22 @@ def main():
     logger.info(f"Saving to {args.output_dir}")
     model.save_pretrained(args.output_dir)
     tokenizer.save_pretrained(args.output_dir)
+
+    # Push to HuggingFace Hub if requested
+    if args.push_to_hub:
+        if args.hub_model_id is None:
+            logger.warning("--hub_model_id is required for push_to_hub. Skipping...")
+        else:
+            logger.info(f"Pushing to HuggingFace Hub: {args.hub_model_id}")
+            model.push_to_hub(
+                args.hub_model_id,
+                token=args.hub_token,
+            )
+            tokenizer.push_to_hub(
+                args.hub_model_id,
+                token=args.hub_token,
+            )
+            logger.info("Successfully pushed to HuggingFace Hub!")
 
     # Save GGUF if needed (Unsloth feature)
     # model.save_pretrained_gguf(args.output_dir, tokenizer, quantization_method = "q4_k_m")
