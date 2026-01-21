@@ -74,6 +74,8 @@ class AttnBasedRetriever:
             torch_dtype=torch.float16,
             attn_implementation="flash_attention_2",
             device_map="auto",
+            # Ignore quantization config from finetuned models (e.g., Unsloth) to avoid bitsandbytes dependency
+            quantization_config=None,
         )
         self.llm.config.pad_token_id = self.llm.config.eos_token_id
 
