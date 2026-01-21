@@ -8,7 +8,7 @@ TRAIN_FILE="data/train.json"
 VALID_FILE="data/valid.json"
 OUTPUT_DIR="outputs/qwen25-7b-unsloth-lora"
 
-HUB_MODEL_ID="hieungo1410/qwen2-7b-finetuned-alqac-2k"  # e.g., "your-username/qwen3-14b-retrieval"
+HUB_MODEL_ID="hieungo1410/qwen2-5-7b-finetuned-alqac-2k"  # e.g., "your-username/qwen3-14b-retrieval"
 
 mkdir -p $OUTPUT_DIR
 
