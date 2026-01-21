@@ -61,8 +61,8 @@ def main():
 
             if args.truncate_by_space > 0:
                 # Truncate each paragraph by space.
-                if len(paragraph_text.split(' ')) > args.truncate_by_space:
-                    print('number of words being truncated: ', len(paragraph_text.split(' ')) - args.truncate_by_space, flush=True)
+                # if len(paragraph_text.split(' ')) > args.truncate_by_space:
+                #     print('number of words being truncated: ', len(paragraph_text.split(' ')) - args.truncate_by_space, flush=True)
 
                 p['paragraph_text'] = ' '.join(paragraph_text.split(' ')[:args.truncate_by_space])
 
