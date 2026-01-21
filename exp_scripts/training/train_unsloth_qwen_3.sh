@@ -3,22 +3,22 @@
 # Training script using Unsloth - 2x faster, less memory
 # Based on: https://www.kaggle.com/code/ksmooi/fine-tuning-qwen-2-5-coder-14b-llm-sft-peft
 
-MODEL_NAME="unsloth/Qwen2.5-7B"
+MODEL_NAME="unsloth/Qwen3-14B"
 TRAIN_FILE="data/train.json"
 VALID_FILE="data/valid.json"
-OUTPUT_DIR="outputs/qwen25-7b-unsloth-lora"
+OUTPUT_DIR="outputs/qwen3-14b-unsloth-lora"
 
 mkdir -p $OUTPUT_DIR
 
 # Hyperparameters
 BATCH_SIZE=1
 GRAD_ACCUM=2
-NUM_EPOCHS=1
+NUM_EPOCHS=3
 LEARNING_RATE=2e-4
-MAX_SEQ_LENGTH=8192
+MAX_SEQ_LENGTH=32768
 
 # LoRA config
-LORA_R=16
+LORA_R=32
 LORA_ALPHA=32
 LORA_DROPOUT=0.0
 
@@ -43,5 +43,5 @@ python exp_scripts/training/train_qwen_unsloth.py \
     --lora_dropout $LORA_DROPOUT \
     --warmup_steps 10 \
     --logging_steps 10 \
-    --save_steps 100 \
+    --save_steps 1000 \
     "$@"
