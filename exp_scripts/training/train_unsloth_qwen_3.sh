@@ -10,7 +10,6 @@ OUTPUT_DIR="outputs/qwen3-14b-unsloth-lora"
 
 # HuggingFace Hub (optional)
 HUB_MODEL_ID="hieunt1410/qwen3-14b-finetuned-alqac-2k"  # e.g., "your-username/qwen3-14b-retrieval"
-PUSH_TO_HUB=true  # Set to "true" to push to Hub
 
 mkdir -p $OUTPUT_DIR
 
@@ -48,6 +47,6 @@ python exp_scripts/training/train_qwen_unsloth.py \
     --warmup_steps 10 \
     --logging_steps 10 \
     --save_steps 1000 \
-    ${HUB_MODEL_ID:+--hub_model_id "$HUB_MODEL_ID"} \
-    ${PUSH_TO_HUB:+--push_to_hub} \
+    --hub_model_id $HUB_MODEL_ID \
+    --push_to_hub \
     "$@"
