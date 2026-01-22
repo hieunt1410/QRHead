@@ -8,13 +8,30 @@ import random
 from qrretriever.attn_retriever import FullHeadRetriever
 
 
+def load_qrels_from_file(qrel_file: str):
+    """
+    Load qrels from a file path directly.
+    Qrel format: query-id  0  doc-id  relevance-grade
+    """
+    qrels = {}
+    with open(qrel_file, 'r') as f:
+        for line in f:
+            parts = line.strip().split('\t')
+            if len(parts) >= 4:
+                qid, _, doc_id, rel = parts[:4]
+                if qid not in qrels:
+                    qrels[qid] = {}
+                qrels[qid][doc_id] = int(rel)
+    return qrels
+
+
 def beir_eval(retrieval_results, qrel_file: str):
     """
     retrieval_results: a dict of qid -> {doc_id -> score}, retrieval results from a specific head
     """
     ks = [5, 10]
-    # qrel_name = 'beir-v1.0.0-{}-test'.format(task)
-    _qrels = get_qrels(qrel_file)
+    # Load qrels from file directly instead of using get_qrels()
+    _qrels = load_qrels_from_file(qrel_file)
     evaluator = EvaluateRetrieval()
     qrels = {}
     for qid in retrieval_results:
