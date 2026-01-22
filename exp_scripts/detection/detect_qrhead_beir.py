@@ -65,8 +65,8 @@ def get_doc_scores_per_head(full_head_retriever, data_instances, truncate_by_spa
 
             if truncate_by_space > 0:
                 # Truncate each paragraph by space.
-                if len(paragraph_text.split(' ')) > truncate_by_space:
-                    print('number of words being truncated: ', len(paragraph_text.split(' ')) - truncate_by_space, flush=True)
+                # if len(paragraph_text.split(' ')) > truncate_by_space:
+                #     print('number of words being truncated: ', len(paragraph_text.split(' ')) - truncate_by_space, flush=True)
 
                 p['paragraph_text'] = ' '.join(paragraph_text.split(' ')[:truncate_by_space])
 
