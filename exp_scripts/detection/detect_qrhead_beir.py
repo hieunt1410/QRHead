@@ -145,7 +145,7 @@ if __name__=="__main__":
         data_instances = json.load(f)
 
     doc_scores_per_head = get_doc_scores_per_head(full_head_retriever, data_instances, truncate_by_space=args.truncate_by_space)
-    head_scores_list = score_heads(doc_scores_per_head, task='nq')
+    head_scores_list = score_heads(doc_scores_per_head, qrel_file=args.qrel_file)
 
     with open(args.output_file, "w") as f:
         json.dump(head_scores_list, f, indent=4)
