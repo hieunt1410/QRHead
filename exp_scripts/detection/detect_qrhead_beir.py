@@ -8,13 +8,13 @@ import random
 from qrretriever.attn_retriever import FullHeadRetriever
 
 
-def beir_eval(retrieval_results, task: str):
+def beir_eval(retrieval_results, qrel_file: str):
     """
     retrieval_results: a dict of qid -> {doc_id -> score}, retrieval results from a specific head
     """
     ks = [5, 10]
-    qrel_name = 'beir-v1.0.0-{}-test'.format(task)
-    _qrels = get_qrels(qrel_name)
+    # qrel_name = 'beir-v1.0.0-{}-test'.format(task)
+    _qrels = get_qrels(qrel_file)
     evaluator = EvaluateRetrieval()
     qrels = {}
     for qid in retrieval_results:
@@ -80,7 +80,7 @@ def get_doc_scores_per_head(full_head_retriever, data_instances, truncate_by_spa
 
 
 
-def score_heads(doc_scores_per_head, task='nq'):
+def score_heads(doc_scores_per_head, qrel_file):
     """
     doc_scores_per_head: a dict of dicts, outer dict key is question idx, inner dict key is doc idx, value is a (n_layers, n_heads) tensor
     """
@@ -107,7 +107,7 @@ def score_heads(doc_scores_per_head, task='nq'):
 
             retrieval_results[qid] = doc_id2score
             
-        head_ncdg = beir_eval(retrieval_results, task)
+        head_ncdg = beir_eval(retrieval_results, qrel_file)
         head_scores[(layer, head)] = head_ncdg["NDCG@10"]
 
     # replace key with layer-head
@@ -125,6 +125,7 @@ if __name__=="__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input_file", type=str, required=True, help="Path to the input JSON file to find QRHead.")
     parser.add_argument("--output_file", type=str, required=True, help="Path to the output JSON file to save scores for each head.")
+    parser.add_argument("--qrel_file", type=str, required=True, help="Path to the qrel file.")
 
     parser.add_argument("--truncate_by_space", type=int, default=0, help="Truncate paragraphs by number of words. Default is 0 (no truncation).")
 
