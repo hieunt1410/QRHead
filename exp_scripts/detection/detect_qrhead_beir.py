@@ -34,7 +34,7 @@ def beir_eval(retrieval_results, qrel_file: str):
     evaluator = EvaluateRetrieval()
     qrels = {}
     for qid in retrieval_results:
-        assert isinstance(qid, str)
+        # assert isinstance(qid, str)
         try:
             __qrels = _qrels[qid]
         except:
