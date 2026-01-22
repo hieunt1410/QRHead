@@ -1,0 +1,5 @@
+# Default configuration
+
+attn_head_set: "9-10,11-11,9-13,16-1,11-13,16-6,12-2,5-6,11-8,20-7,21-12,12-12,21-5,9-8,21-8,21-2"
+model_base_class: "Qwen2-0.5B-Instruct"
+model_name_or_path: "Qwen/Qwen2-0.5B-Instruct"
