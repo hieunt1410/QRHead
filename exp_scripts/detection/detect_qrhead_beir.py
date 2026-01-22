@@ -1,6 +1,5 @@
 import argparse
 from tqdm import tqdm
-from pyserini.search import get_qrels
 from beir.retrieval.evaluation import EvaluateRetrieval
 from itertools import product
 import json
